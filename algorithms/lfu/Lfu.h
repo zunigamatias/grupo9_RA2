@@ -5,9 +5,23 @@
 #include <unordered_map>
 #include <list>
 
+struct LfuNode {
+    std::string key;
+    std::string value;
+    int frequency;
+    
+    LfuNode(const std::string& k, const std::string& v) 
+        : key(k), value(v), frequency(1) {}
+};
+
 class Lfu : public Cache {
 private:
-    // private data
+    std::unordered_map<std::string, std::list<LfuNode>::iterator> keyToNode;
+    std::unordered_map<int, std::list<LfuNode>> frequencyGroups;
+    int minFrequency;
+    
+    void updateFrequency(const std::string& key);
+    void evictLfu();
     
 public:
     Lfu(int capacity);
@@ -20,4 +34,4 @@ public:
     std::string getType() const override { return "LFU"; }
 };
 
-#endif // LFU_H
+#endif

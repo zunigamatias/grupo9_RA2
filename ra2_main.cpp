@@ -29,11 +29,12 @@ std::unique_ptr<Cache> createCache(const std::string& cacheType, int capacity) {
 }
 
 int main() {
-    const std::string configFile = "winner_algorithm.txt";
+    const std::string configFile = "../winner_algorithm.txt";
 
     std::cout << "=== Text Cache System ===\n";
     
     std::string algorithm = readWinnerFromDisk(configFile);
+    std::cout << "algorithm: " << algorithm << std::endl;
     if (algorithm.empty()) {
         std::cout << "No winner algorithm found. Please run simulation mode first (-1).\n";
     }
@@ -78,7 +79,7 @@ int main() {
             continue;
         }
 
-        std::string fileName = "text_" + std::to_string(choice) + ".txt";
+        std::string fileName = "../texts/text_" + std::to_string(choice) + ".txt";
 
         auto start = std::chrono::high_resolution_clock::now();
         bool hit = false;
@@ -104,14 +105,11 @@ int main() {
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> elapsed = end - start;
 
-        std::cout << "Text " << choice << " loaded in " << elapsed.count() << " ms.\n";
-
+        
         std::cout << "---- Full text ----\n";
-        std::cout << item.value() << "...\n";
-
-        std::cout << "(Press Enter to continue)\n";
-        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-        std::cin.get();
+        std::cout << item.value() << std::endl;
+        std::cout << "---- End of text ----\n";
+        std::cout << "Text " << choice << " loaded in " << elapsed.count() << " ms.\n";
     }
 
     return 0;
