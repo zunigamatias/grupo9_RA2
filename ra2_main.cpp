@@ -79,7 +79,7 @@ int main() {
             continue;
         }
 
-        std::string fileName = "text_" + std::to_string(choice) + ".txt";
+        std::string fileName = "../texts/text_" + std::to_string(choice) + ".txt";
 
         auto start = std::chrono::high_resolution_clock::now();
         bool hit = false;
@@ -105,10 +105,11 @@ int main() {
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> elapsed = end - start;
 
-        std::cout << "Text " << choice << " loaded in " << elapsed.count() << " ms.\n";
-
+        
         std::cout << "---- Full text ----\n";
-        std::cout << item.value() << "...\n";
+        std::cout << item.value() << std::endl;
+        std::cout << "---- End of text ----\n";
+        std::cout << "Text " << choice << " loaded in " << elapsed.count() << " ms.\n";
     }
 
     return 0;
