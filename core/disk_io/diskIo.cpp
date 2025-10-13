@@ -1,5 +1,7 @@
-#include <string>
 #include <fstream>
+#include <iostream>
+#include <string>
+#include <sstream>
 
 
 void writeWinnerToDisk(const std::string& path, const std::string& algorithm) {
@@ -18,4 +20,19 @@ std::string readWinnerFromDisk(const std::string& path) {
         file.close();
     }
     return name;
+}
+
+std::string readTextFile(std::string path) {
+    std::ifstream file(path);
+    
+    if (!file.is_open()) {
+        std::cerr << "Error: Could not open file " << path << std::endl;
+        return "";
+    }
+    
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    file.close();
+    
+    return buffer.str();
 }

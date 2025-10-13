@@ -1,23 +1,32 @@
-#include <iostream>
-#include <string>
-#include <fstream>
-#include <memory>
 #include <chrono>
+#include <fstream>
+#include <iostream>
+#include <limits>
+#include <memory>
+#include <sstream>
+#include <string>
 
 // local cache algorithms
 #include "algorithms/Cache.h"
 #include "algorithms/lfu/Lfu.h"
 #include "algorithms/random_replacement/RandomReplacement.h"
 #include "algorithms/s3_fifo/S3Fifo.h"
+#include "simulation/Simulator.h"
 
 // disk read and write functions
 #include "core/disk_io/DiskIo.h"
 
-// Forward declarations (to be implemented elsewhere)
-std::unique_ptr<Cache> createCache(const std::string& algorithmName);
-void runSimulationMode();
-std::string readTextFile(int id);
-
+std::unique_ptr<Cache> createCache(const std::string& cacheType, int capacity) {  
+    if (cacheType == "lfu") {
+        return std::make_unique<Lfu>(capacity);
+    } else if (cacheType == "random") {
+        return std::make_unique<RandomReplacement>(capacity);
+    } else if (cacheType == "s3_fifo") {
+        return std::make_unique<S3Fifo>(capacity);
+    }
+    
+    return nullptr;
+}
 
 int main() {
     const std::string configFile = "winner_algorithm.txt";
@@ -29,7 +38,7 @@ int main() {
         std::cout << "No winner algorithm found. Please run simulation mode first (-1).\n";
     }
     
-    std::unique_ptr<Cache> cache = createCache(algorithm);
+    std::unique_ptr<Cache> cache = createCache(algorithm, 10);
     if (!cache && !algorithm.empty()) {
         std::cerr << "Error: could not initialize cache for algorithm: " << algorithm << "\n";
         return 1;
@@ -60,7 +69,7 @@ int main() {
 
             algorithm = readWinnerFromDisk(configFile);
             std::cout << "Simulation complete. Winner algorithm: " << algorithm << "\n";
-            cache = createCache(algorithm);
+            cache = createCache(algorithm, 10);
             continue;
         }
 
@@ -73,18 +82,20 @@ int main() {
 
         auto start = std::chrono::high_resolution_clock::now();
         bool hit = false;
-        std::string item;
+        std::string strChoice = std::to_string(choice);
+        auto item = cache->get(strChoice);
 
-        std::tie(item, hit) = cache->getItem(choice);
-        if (hit) {
+        if (item.has_value()) {
+            hit = true;
             std::cout << "[Cache HIT]\n";
         } else {
+            hit = false;
             std::cout << "[Cache MISS]\n";
-            item = readTextFile(choice);
-            cache->putItem(choice, item);
-            std::tie(item, hit) = cache->getItem(choice);
+            std::string fileContent = readTextFile(fileName);
+            cache->put(strChoice, fileContent);
             
-            if (!hit) {
+            item = cache->get(strChoice);
+            if (!item.has_value()) {
                 std::cout << "unable to read file after put, closing program\n";
                 exit(-1);
             }
@@ -96,7 +107,7 @@ int main() {
         std::cout << "Text " << choice << " loaded in " << elapsed.count() << " ms.\n";
 
         std::cout << "---- Full text ----\n";
-        std::cout << item << "...\n";
+        std::cout << item.value() << "...\n";
 
         std::cout << "(Press Enter to continue)\n";
         std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
