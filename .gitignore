@@ -55,3 +55,4 @@ Makefile
 # Executables
 cache_simulator
 cache_simulator.exe
+winner_algorithm.txt
