@@ -29,11 +29,12 @@ std::unique_ptr<Cache> createCache(const std::string& cacheType, int capacity) {
 }
 
 int main() {
-    const std::string configFile = "winner_algorithm.txt";
+    const std::string configFile = "../winner_algorithm.txt";
 
     std::cout << "=== Text Cache System ===\n";
     
     std::string algorithm = readWinnerFromDisk(configFile);
+    std::cout << "algorithm: " << algorithm << std::endl;
     if (algorithm.empty()) {
         std::cout << "No winner algorithm found. Please run simulation mode first (-1).\n";
     }
@@ -108,10 +109,6 @@ int main() {
 
         std::cout << "---- Full text ----\n";
         std::cout << item.value() << "...\n";
-
-        std::cout << "(Press Enter to continue)\n";
-        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-        std::cin.get();
     }
 
     return 0;
