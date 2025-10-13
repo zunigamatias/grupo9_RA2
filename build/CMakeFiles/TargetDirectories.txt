@@ -1,3 +1,0 @@
-/home/tiasz/cache_algorithms/build/CMakeFiles/cache_simulator.dir
-/home/tiasz/cache_algorithms/build/CMakeFiles/edit_cache.dir
-/home/tiasz/cache_algorithms/build/CMakeFiles/rebuild_cache.dir
