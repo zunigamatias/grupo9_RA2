@@ -3,11 +3,23 @@
 
 #include "../Cache.h"
 #include <unordered_map>
-#include <queue>
+#include <deque>
+
+struct S3FifoNode {
+    std::string key;
+    std::string value;
+    bool visited;
+    
+    S3FifoNode(const std::string& k, const std::string& v) 
+        : key(k), value(v), visited(false) {}
+};
 
 class S3Fifo : public Cache {
 private:
-    // Add your data structures here for S3-FIFO implementation
+    std::unordered_map<std::string, std::deque<S3FifoNode>::iterator> keyToNode;
+    std::deque<S3FifoNode> fifoQueue;
+    
+    void evictS3Fifo();
     
 public:
     S3Fifo(int capacity);
@@ -20,4 +32,4 @@ public:
     std::string getType() const override { return "S3Fifo"; }
 };
 
-#endif // S3_FIFO_H
+#endif
