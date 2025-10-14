@@ -8,7 +8,11 @@
 
 class RandomReplacement : public Cache {
 private:
-    // Add your data structures here for Random Replacement implementation
+    std::unordered_map<std::string, std::string> data;
+    std::vector<std::string> keys;
+    std::mt19937 rng;
+    
+    void evictRandom();
     
 public:
     RandomReplacement(int capacity);
@@ -21,4 +25,4 @@ public:
     std::string getType() const override { return "RandomReplacement"; }
 };
 
-#endif // RANDOM_REPLACEMENT_H
+#endif
