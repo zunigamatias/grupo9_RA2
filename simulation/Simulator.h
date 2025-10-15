@@ -1,6 +1,7 @@
 #ifndef SIMULATOR_H
 #define SIMULATOR_H
 
+#include <cstdlib> 
 #include <string>
 #include <vector>
 #include <memory>
@@ -42,6 +43,12 @@ private:
     std::vector<int> generateRandomSequence(int count);
     std::vector<int> generatePoissonSequence(int count);
     std::vector<int> generateBiasedSequence(int count);
+    void generateGnuplotGraphics(const std::vector<SimulationResult>& results);
+    void createHitRateChart(const std::vector<SimulationResult>& results);
+    void createTimeChart(const std::vector<SimulationResult>& results);
+    void createDistributionChart(const std::vector<SimulationResult>& results);
+    void createMissAnalysisChart(const std::vector<SimulationResult>& results);
+    void writeDataToFile(const std::string& filename, const std::vector<std::pair<std::string, double>>& data);
     
     SimulationResult testCacheAlgorithm(const std::string& algorithmName, 
                                       const std::string& randomType,
@@ -49,7 +56,6 @@ private:
                                       const std::vector<int>& sequence);
     
     std::unique_ptr<Cache> createTestCache(const std::string& cacheType);
-    void saveWinnerToFile(const std::string& winner);
     void printSimulationResults(const std::vector<SimulationResult>& results);
     std::string selectBestAlgorithm(const std::vector<SimulationResult>& results);
     std::string readTestFile(int fileNumber);
