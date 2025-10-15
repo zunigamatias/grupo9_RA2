@@ -2,16 +2,17 @@
 #include "../algorithms/lfu/Lfu.h"
 #include "../algorithms/random_replacement/RandomReplacement.h"
 #include "../algorithms/s3_fifo/S3Fifo.h"
-#include "../core/disk_io/DiskIo.h"
 #include <iostream>
 #include <fstream>
-#include <random>
-#include <chrono>
+#include <iomanip>
 #include <algorithm>
+#include <sstream>
 
-Simulator::Simulator() : testCapacity(50) {
+Simulator::Simulator() : testCapacity(10), numUsers(3), requestsPerTest(200), 
+                        rng(std::random_device{}()),
+                        uniformDist(1, 100),
+                        poissonDist(50) {  // Lambda = 50 for Poisson centered around middle files
     cacheTypes = {"lfu", "random", "s3_fifo"};
-    generateTestSequence();
 }
 
 Simulator::~Simulator() {
@@ -19,83 +20,151 @@ Simulator::~Simulator() {
 }
 
 std::string Simulator::runSimulation() {
-    std::cout << "Starting cache algorithm simulation...\n";
+    std::cout << "\n=== STARTING CACHE SIMULATION MODE ===\n";
+    std::cout << "Testing " << cacheTypes.size() << " algorithms with " << numUsers << " users\n";
+    std::cout << "Each test: " << requestsPerTest << " requests\n";
+    std::cout << "Cache capacity: " << testCapacity << " files\n\n";
     
-    std::string bestAlgorithm = "lfu";  
-    double bestHitRate = 0.0;
+    std::vector<SimulationResult> allResults;
     
+    // Test each cache algorithm
     for (const std::string& algorithm : cacheTypes) {
-        std::cout << "Testing " << algorithm << " algorithm...\n";
+        std::cout << "Testing " << algorithm << " algorithm:\n";
         
-        double hitRate = testCacheAlgorithm(algorithm);
-        std::cout << algorithm << " hit rate: " << hitRate * 100 << "%\n";
-        
-        if (hitRate > bestHitRate) {
-            bestHitRate = hitRate;
-            bestAlgorithm = algorithm;
+        // Test with each user
+        for (int userId = 1; userId <= numUsers; userId++) {
+            std::cout << "  User " << userId << ":\n";
+            
+            // Test with each random distribution
+            auto uniformSeq = generateRandomSequence(requestsPerTest);
+            auto poissonSeq = generatePoissonSequence(requestsPerTest);
+            auto biasedSeq = generateBiasedSequence(requestsPerTest);
+            
+            std::cout << "    Testing uniform distribution...";
+            auto result1 = testCacheAlgorithm(algorithm, "uniform", userId, uniformSeq);
+            allResults.push_back(result1);
+            std::cout << " Done\n";
+            
+            std::cout << "    Testing Poisson distribution...";
+            auto result2 = testCacheAlgorithm(algorithm, "poisson", userId, poissonSeq);
+            allResults.push_back(result2);
+            std::cout << " Done\n";
+            
+            std::cout << "    Testing biased distribution...";
+            auto result3 = testCacheAlgorithm(algorithm, "biased", userId, biasedSeq);
+            allResults.push_back(result3);
+            std::cout << " Done\n";
         }
+        std::cout << "\n";
     }
     
-    std::cout << "\nSimulation complete!\n";
-    std::cout << "Winner: " << bestAlgorithm << " with " << bestHitRate * 100 << "% hit rate\n";
+    std::cout << "=== SIMULATION COMPLETE ===\n\n";
     
+    // Print detailed results
+    printSimulationResults(allResults);
+    
+    // Select best algorithm
+    std::string bestAlgorithm = selectBestAlgorithm(allResults);
+    
+    // Save winner
     saveWinnerToFile(bestAlgorithm);
     
     return bestAlgorithm;
 }
 
-void Simulator::generateTestSequence() {
-    testSequence.clear();
-    testSequence.reserve(1000);
+std::vector<int> Simulator::generateRandomSequence(int count) {
+    std::vector<int> sequence;
+    sequence.reserve(count);
     
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<> dis(1, 100);
-    
-    for (int i = 0; i < 1000; ++i) {
-        testSequence.push_back(dis(gen));
+    for (int i = 0; i < count; i++) {
+        sequence.push_back(uniformDist(rng));
     }
     
-    std::cout << "Generated test sequence of " << testSequence.size() << " file accesses\n";
+    return sequence;
 }
 
-double Simulator::testCacheAlgorithm(const std::string& algorithmName) {
-    auto cache = createTestCache(algorithmName);
-    if (!cache) {
-        std::cerr << "Failed to create cache for " << algorithmName << std::endl;
-        return 0.0;
+std::vector<int> Simulator::generatePoissonSequence(int count) {
+    std::vector<int> sequence;
+    sequence.reserve(count);
+    
+    for (int i = 0; i < count; i++) {
+        int value = poissonDist(rng);
+        // Clamp to valid range [1, 100]
+        value = std::max(1, std::min(100, value));
+        sequence.push_back(value);
     }
     
-    int hits = 0;
-    int totalAccesses = testSequence.size();
+    return sequence;
+}
+
+std::vector<int> Simulator::generateBiasedSequence(int count) {
+    std::vector<int> sequence;
+    sequence.reserve(count);
     
-    for (int fileNumber : testSequence) {
-        std::string key = std::to_string(fileNumber);
-        
-        auto result = cache->get(key);
-        if (result.has_value()) {
-            // Cache hit
-            hits++;
-        } else {
-            // Cache miss - simulate loading file and putting in cache
-            std::string fakeFileContent = "Content of file " + std::to_string(fileNumber);
-            cache->put(key, fakeFileContent);
+    std::uniform_real_distribution<double> probDist(0.0, 1.0);
+    std::uniform_int_distribution<int> biasedRange(30, 40);  // Files 30-40
+    std::uniform_int_distribution<int> normalRange(1, 100);   // All files
+    
+    for (int i = 0; i < count; i++) {
+        if (probDist(rng) < 0.43) {  // 43% chance for files 30-40
+            sequence.push_back(biasedRange(rng));
+        } else {  // 57% chance for any file
+            sequence.push_back(normalRange(rng));
         }
     }
     
-    double hitRate = static_cast<double>(hits) / totalAccesses;
-    return hitRate;
+    return sequence;
 }
 
-void Simulator::saveWinnerToFile(const std::string& winner) {
-    std::ofstream file("winner_algorithm.txt");
-    if (file.is_open()) {
-        file << winner;
-        file.close();
-        std::cout << "Winner algorithm saved to winner_algorithm.txt\n";
-    } else {
-        std::cerr << "Error: Could not save winner to file\n";
+SimulationResult Simulator::testCacheAlgorithm(const std::string& algorithmName,
+                                             const std::string& randomType,
+                                             int userId,
+                                             const std::vector<int>& sequence) {
+    SimulationResult result;
+    result.algorithmName = algorithmName;
+    result.randomType = randomType;
+    result.userId = userId;
+    result.totalRequests = sequence.size();
+    result.cacheHits = 0;
+    result.cacheMisses = 0;
+    result.totalTime = 0.0;
+    
+    auto cache = createTestCache(algorithmName);
+    if (!cache) {
+        std::cerr << "Failed to create cache for " << algorithmName << std::endl;
+        return result;
     }
+    
+    for (int fileNumber : sequence) {
+        std::string key = std::to_string(fileNumber);
+        
+        auto start = std::chrono::high_resolution_clock::now();
+        
+        auto cachedContent = cache->get(key);
+        if (cachedContent.has_value()) {
+            // Cache hit
+            result.cacheHits++;
+        } else {
+            // Cache miss
+            result.cacheMisses++;
+            result.missedFiles.push_back(fileNumber);
+            
+            // Simulate reading file from disk
+            std::string fileContent = readTestFile(fileNumber);
+            cache->put(key, fileContent);
+        }
+        
+        auto end = std::chrono::high_resolution_clock::now();
+        auto elapsed = std::chrono::duration<double, std::milli>(end - start);
+        double timeMs = elapsed.count();
+        
+        result.accessTimes.push_back(timeMs);
+        result.totalTime += timeMs;
+    }
+    
+    result.averageTime = result.totalTime / result.totalRequests;
+    
+    return result;
 }
 
 std::unique_ptr<Cache> Simulator::createTestCache(const std::string& cacheType) {
@@ -108,6 +177,103 @@ std::unique_ptr<Cache> Simulator::createTestCache(const std::string& cacheType) 
     }
     
     return nullptr;
+}
+
+std::string Simulator::readTestFile(int fileNumber) {
+    // Simulate file content (replace with actual file reading if needed)
+    std::stringstream ss;
+    ss << "Content of file " << fileNumber << ". ";
+    ss << "This is simulated text content that would normally be read from disk. ";
+    ss << "File " << fileNumber << " contains important legal documents. ";
+    
+    // Add some variation to make files different sizes
+    for (int i = 0; i < (fileNumber % 10) + 5; i++) {
+        ss << "Additional content paragraph " << i << ". ";
+    }
+    
+    return ss.str();
+}
+
+void Simulator::printSimulationResults(const std::vector<SimulationResult>& results) {
+    std::cout << "=== DETAILED SIMULATION RESULTS ===\n\n";
+    
+    for (const auto& result : results) {
+        std::cout << "Algorithm: " << result.algorithmName 
+                  << " | Distribution: " << result.randomType
+                  << " | User: " << result.userId << "\n";
+        std::cout << "  Requests: " << result.totalRequests << "\n";
+        std::cout << "  Cache Hits: " << result.cacheHits 
+                  << " (" << std::fixed << std::setprecision(1) 
+                  << (100.0 * result.cacheHits / result.totalRequests) << "%)\n";
+        std::cout << "  Cache Misses: " << result.cacheMisses 
+                  << " (" << std::fixed << std::setprecision(1) 
+                  << (100.0 * result.cacheMisses / result.totalRequests) << "%)\n";
+        std::cout << "  Total Time: " << std::fixed << std::setprecision(2) 
+                  << result.totalTime << " ms\n";
+        std::cout << "  Average Time: " << std::fixed << std::setprecision(2) 
+                  << result.averageTime << " ms\n";
+        std::cout << "  Unique Missed Files: " << result.missedFiles.size() << "\n\n";
+    }
+}
+
+std::string Simulator::selectBestAlgorithm(const std::vector<SimulationResult>& results) {
+    std::map<std::string, std::vector<double>> algorithmHitRates;
+    std::map<std::string, std::vector<double>> algorithmAvgTimes;
+    
+    for (const auto& result : results) {
+        double hitRate = (double)result.cacheHits / result.totalRequests;
+        algorithmHitRates[result.algorithmName].push_back(hitRate);
+        algorithmAvgTimes[result.algorithmName].push_back(result.averageTime);
+    }
+    
+    std::cout << "=== ALGORITHM COMPARISON ===\n";
+    
+    std::string bestAlgorithm;
+    double bestScore = -1.0;
+    
+    for (const auto& [algorithm, hitRates] : algorithmHitRates) {
+        double avgHitRate = 0.0;
+        double avgTime = 0.0;
+        
+        for (double rate : hitRates) {
+            avgHitRate += rate;
+        }
+        avgHitRate /= hitRates.size();
+        
+        for (double time : algorithmAvgTimes[algorithm]) {
+            avgTime += time;
+        }
+        avgTime /= algorithmAvgTimes[algorithm].size();
+        
+        // Score based on hit rate (higher is better) and time (lower is better)
+        double score = avgHitRate * 1000 - avgTime;  // Weighted score
+        
+        std::cout << algorithm << ":\n";
+        std::cout << "  Average Hit Rate: " << std::fixed << std::setprecision(1) 
+                  << (avgHitRate * 100) << "%\n";
+        std::cout << "  Average Time: " << std::fixed << std::setprecision(2) 
+                  << avgTime << " ms\n";
+        std::cout << "  Score: " << std::fixed << std::setprecision(2) << score << "\n\n";
+        
+        if (score > bestScore) {
+            bestScore = score;
+            bestAlgorithm = algorithm;
+        }
+    }
+    
+    std::cout << "WINNER: " << bestAlgorithm << "\n\n";
+    return bestAlgorithm;
+}
+
+void Simulator::saveWinnerToFile(const std::string& winner) {
+    std::ofstream file("winner_algorithm.txt");
+    if (file.is_open()) {
+        file << winner;
+        file.close();
+        std::cout << "Winner algorithm saved to winner_algorithm.txt\n";
+    } else {
+        std::cerr << "Error: Could not save winner to file\n";
+    }
 }
 
 void runSimulationMode() {
