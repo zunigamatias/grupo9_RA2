@@ -21,6 +21,195 @@ Simulator::Simulator() : testCapacity(10), numUsers(3), requestsPerTest(200),
 Simulator::~Simulator() {
     // Destructor
 }
+void Simulator::generateGnuplotGraphics(const std::vector<SimulationResult>& results) {
+    std::cout << "Generating gnuplot graphics...\n";
+    
+    createHitRateChart(results);
+    createTimeChart(results);
+    createDistributionChart(results);
+    createMissAnalysisChart(results);
+    
+    std::cout << "Graphics generated! Check for PNG files in current directory:\n";
+    std::cout << "  - hit_rates.png\n";
+    std::cout << "  - response_times.png\n";
+    std::cout << "  - distribution_analysis.png\n";
+    std::cout << "  - miss_analysis.png\n\n";
+}
+
+void Simulator::createHitRateChart(const std::vector<SimulationResult>& results) {
+    // Calculate average hit rates by algorithm
+    std::map<std::string, std::vector<double>> algorithmHitRates;
+    
+    for (const auto& result : results) {
+        double hitRate = (double)result.cacheHits / result.totalRequests * 100;
+        algorithmHitRates[result.algorithmName].push_back(hitRate);
+    }
+    
+    // Prepare data
+    std::vector<std::pair<std::string, double>> chartData;
+    for (const auto& [algorithm, rates] : algorithmHitRates) {
+        double sum = 0;
+        for (double rate : rates) sum += rate;
+        double avgRate = sum / rates.size();
+        chartData.push_back({algorithm, avgRate});
+    }
+    
+    // Write data to file
+    writeDataToFile("../results/hit_rates_data.txt", chartData);
+    
+    // Create gnuplot script
+    std::ofstream script("hit_rates_plot.gnu");
+    script << "set terminal png size 800,600\n";
+    script << "set output '../results/hit_rates.png'\n";
+    script << "set title 'Cache Hit Rate Comparison by Algorithm'\n";
+    script << "set xlabel 'Algorithm'\n";
+    script << "set ylabel 'Hit Rate (%)'\n";
+    script << "set style data histograms\n";
+    script << "set style histogram cluster gap 1\n";
+    script << "set style fill solid border -1\n";
+    script << "set boxwidth 0.8\n";
+    script << "set grid y\n";
+    script << "set yrange [0:100]\n";
+    script << "plot 'hit_rates_data.txt' using 2:xtic(1) title 'Hit Rate' linecolor rgb '#2E8B57'\n";
+    script.close();
+    
+    // Execute gnuplot
+    system("gnuplot hit_rates_plot.gnu");
+}
+
+void Simulator::createTimeChart(const std::vector<SimulationResult>& results) {
+    // Calculate average response times by algorithm
+    std::map<std::string, std::vector<double>> algorithmTimes;
+    
+    for (const auto& result : results) {
+        algorithmTimes[result.algorithmName].push_back(result.averageTime);
+    }
+    
+    // Prepare data
+    std::vector<std::pair<std::string, double>> chartData;
+    for (const auto& [algorithm, times] : algorithmTimes) {
+        double sum = 0;
+        for (double time : times) sum += time;
+        double avgTime = sum / times.size();
+        chartData.push_back({algorithm, avgTime});
+    }
+    
+    // Write data to file
+    writeDataToFile("times_data.txt", chartData);
+    
+    // Create gnuplot script
+    std::ofstream script("times_plot.gnu");
+    script << "set terminal png size 800,600\n";
+    script << "set output '../results/response_times.png'\n";
+    script << "set title 'Average Response Time by Algorithm'\n";
+    script << "set xlabel 'Algorithm'\n";
+    script << "set ylabel 'Response Time (ms)'\n";
+    script << "set style data histograms\n";
+    script << "set style histogram cluster gap 1\n";
+    script << "set style fill solid border -1\n";
+    script << "set boxwidth 0.8\n";
+    script << "set grid y\n";
+    script << "plot 'times_data.txt' using 2:xtic(1) title 'Avg Time' linecolor rgb '#DC143C'\n";
+    script.close();
+    
+    // Execute gnuplot
+    system("gnuplot times_plot.gnu");
+}
+
+void Simulator::createDistributionChart(const std::vector<SimulationResult>& results) {
+    // Group data by algorithm and distribution
+    std::map<std::string, std::map<std::string, std::vector<double>>> groupedData;
+    
+    for (const auto& result : results) {
+        double hitRate = (double)result.cacheHits / result.totalRequests * 100;
+        groupedData[result.algorithmName][result.randomType].push_back(hitRate);
+    }
+    
+    // Write data file for each algorithm
+    std::ofstream dataFile("distribution_data.txt");
+    dataFile << "Distribution LFU Random S3-FIFO\n";
+    
+    for (const std::string& dist : {"uniform", "poisson", "biased"}) {
+        dataFile << dist;
+        for (const std::string& alg : {"lfu", "random", "s3_fifo"}) {
+            if (groupedData[alg].find(dist) != groupedData[alg].end()) {
+                double sum = 0;
+                for (double rate : groupedData[alg][dist]) sum += rate;
+                double avg = sum / groupedData[alg][dist].size();
+                dataFile << " " << avg;
+            } else {
+                dataFile << " 0";
+            }
+        }
+        dataFile << "\n";
+    }
+    dataFile.close();
+    
+    // Create gnuplot script
+    std::ofstream script("distribution_plot.gnu");
+    script << "set terminal png size 1000,600\n";
+    script << "set output '../results/distribution_analysis.png'\n";
+    script << "set title 'Hit Rate by Distribution Type and Algorithm'\n";
+    script << "set xlabel 'Distribution Type'\n";
+    script << "set ylabel 'Hit Rate (%)'\n";
+    script << "set style data histograms\n";
+    script << "set style histogram cluster gap 1\n";
+    script << "set style fill solid border -1\n";
+    script << "set boxwidth 0.8\n";
+    script << "set grid y\n";
+    script << "set key outside right\n";
+    script << "plot 'distribution_data.txt' using 2:xtic(1) title 'LFU' linecolor rgb '#2E8B57', \\\n";
+    script << "     '' using 3 title 'Random' linecolor rgb '#DC143C', \\\n";
+    script << "     '' using 4 title 'S3-FIFO' linecolor rgb '#4169E1'\n";
+    script.close();
+    
+    // Execute gnuplot
+    system("gnuplot distribution_plot.gnu");
+}
+
+void Simulator::createMissAnalysisChart(const std::vector<SimulationResult>& results) {
+    // Count total misses per algorithm
+    std::map<std::string, int> totalMisses;
+    
+    for (const auto& result : results) {
+        totalMisses[result.algorithmName] += result.cacheMisses;
+    }
+    
+    // Prepare data
+    std::vector<std::pair<std::string, double>> chartData;
+    for (const auto& [algorithm, misses] : totalMisses) {
+        chartData.push_back({algorithm, (double)misses});
+    }
+    
+    // Write data to file
+    writeDataToFile("misses_data.txt", chartData);
+    
+    // Create gnuplot script
+    std::ofstream script("misses_plot.gnu");
+    script << "set terminal png size 800,600\n";
+    script << "set output '../results/miss_analysis.png'\n";
+    script << "set title 'Total Cache Misses by Algorithm'\n";
+    script << "set xlabel 'Algorithm'\n";
+    script << "set ylabel 'Total Misses'\n";
+    script << "set style data histograms\n";
+    script << "set style histogram cluster gap 1\n";
+    script << "set style fill solid border -1\n";
+    script << "set boxwidth 0.8\n";
+    script << "set grid y\n";
+    script << "plot 'misses_data.txt' using 2:xtic(1) title 'Total Misses' linecolor rgb '#FF8C00'\n";
+    script.close();
+    
+    system("gnuplot misses_plot.gnu");
+}
+
+void Simulator::writeDataToFile(const std::string& filename, 
+                               const std::vector<std::pair<std::string, double>>& data) {
+    std::ofstream file(filename);
+    for (const auto& [label, value] : data) {
+        file << label << " " << value << "\n";
+    }
+    file.close();
+}
 std::string PATH = "../winner_algorithm.txt";
 std::string Simulator::runSimulation() {
     std::cout << "\n=== STARTING CACHE SIMULATION MODE ===\n";
@@ -59,13 +248,18 @@ std::string Simulator::runSimulation() {
     }
     
     std::cout << "=== SIMULATION COMPLETE ===\n\n";
+        
+    // Generate external graphics with gnuplot
+    generateGnuplotGraphics(allResults);
     
+    // Print detailed results
     printSimulationResults(allResults);
     
+    // Select best algorithm
     std::string bestAlgorithm = selectBestAlgorithm(allResults);
     
-    writeWinnerToDisk(PATH, bestAlgorithm);
-    
+    // Save winner
+    writeWinnerToDisk(PATH, bestAlgorithm);    
     return bestAlgorithm;
 }
 
@@ -148,8 +342,9 @@ SimulationResult Simulator::testCacheAlgorithm(const std::string& algorithmName,
         }
         
         auto end = std::chrono::high_resolution_clock::now();
-        auto elapsed = std::chrono::duration<double, std::milli>(end - start);
-        double timeMs = elapsed.count();
+        auto elapsed = std::chrono::duration<double, std::micro>(end - start);  // Use microseconds
+        double timeMicroseconds = elapsed.count();
+        double timeMs = timeMicroseconds / 1000.0;  // Convert to milliseconds
         
         result.accessTimes.push_back(timeMs);
         result.totalTime += timeMs;
@@ -199,9 +394,9 @@ void Simulator::printSimulationResults(const std::vector<SimulationResult>& resu
         std::cout << "  Cache Misses: " << result.cacheMisses 
                   << " (" << std::fixed << std::setprecision(1) 
                   << (100.0 * result.cacheMisses / result.totalRequests) << "%)\n";
-        std::cout << "  Total Time: " << std::fixed << std::setprecision(2) 
+        std::cout << "  Total Time: " << std::fixed << std::setprecision(4)
                   << result.totalTime << " ms\n";
-        std::cout << "  Average Time: " << std::fixed << std::setprecision(2) 
+        std::cout << "  Average Time: " << std::fixed << std::setprecision(4)
                   << result.averageTime << " ms\n";
         std::cout << "  Unique Missed Files: " << result.missedFiles.size() << "\n\n";
     }
@@ -241,7 +436,7 @@ std::string Simulator::selectBestAlgorithm(const std::vector<SimulationResult>& 
         std::cout << algorithm << ":\n";
         std::cout << "  Average Hit Rate: " << std::fixed << std::setprecision(1) 
                   << (avgHitRate * 100) << "%\n";
-        std::cout << "  Average Time: " << std::fixed << std::setprecision(2) 
+        std::cout << "  Average Time: " << std::fixed << std::setprecision(4)
                   << avgTime << " ms\n";
         std::cout << "  Score: " << std::fixed << std::setprecision(2) << score << "\n\n";
         
